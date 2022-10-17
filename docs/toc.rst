@@ -6,5 +6,7 @@ Table of Contents
 
    index
    installation
+   usage
+   module
    release_notes
    contributing
