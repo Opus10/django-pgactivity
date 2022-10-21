@@ -8,6 +8,7 @@ from pgactivity import config, core, utils
 
 class JSONField(utils.JSONField):
     """A JSONField that has a stable import path.
+
     Useful for migrations since the JSONField path
     changed in a Django upgrade.
     """
@@ -16,10 +17,10 @@ class JSONField(utils.JSONField):
 
 
 class PGTableQueryCompiler(SQLCompiler):
-    def get_ctes(self, pid_clause):
+    def get_ctes(self):
         context_re = r"^/\*pga_context={[^\*]*}\*/"
         return [
-            f"""
+            rf"""
             _pgactivity_activity_cte AS (
                 SELECT
                     pid AS id,
@@ -33,22 +34,42 @@ class PGTableQueryCompiler(SQLCompiler):
                         '*/'
                     )::jsonb AS context,
                     REGEXP_REPLACE(query, '{context_re}\n', '') AS query,
-                    UPPER(REPLACE(state, ' ', '_')) AS state
+                    UPPER(REPLACE(state, ' ', '_')) AS state,
+                    xact_start,
+                    backend_start,
+                    backend_xid::text,
+                    backend_xmin::text,
+                    UPPER(REPLACE(backend_type, ' ', '_')) AS backend_type,
+                    TRIM(
+                        BOTH '_' FROM UPPER(REGEXP_REPLACE(wait_event_type, '([A-Z])','_\1', 'g'))
+                    ) AS wait_event_type,
+                    TRIM(
+                        BOTH '_' FROM UPPER(REGEXP_REPLACE(wait_event, '([A-Z])','_\1', 'g'))
+                    ) AS wait_event,
+                    state_change,
+                    client_addr::text,
+                    client_hostname,
+                    client_port
                     FROM pg_stat_activity
-                WHERE datname = '{settings.DATABASES[self.using]["NAME"]}' {pid_clause}
+                WHERE
+                    datname = '{settings.DATABASES[self.using]["NAME"]}'
+                    {self.get_pid_clause()}
             )
             """
         ]
+
+    def get_pid_clause(self):
+        pid_clause = ""
+        if self.query.pids:
+            pid_clause = f"AND pid IN ({', '.join(str(pid) for pid in self.query.pids)})"
+
+        return pid_clause
 
     def as_sql(self, *args, **kwargs):
         """
         Return a CTE for the pg_stat_activity to facilitate queries
         """
-        pid_clause = ""
-        if self.query.pids:
-            pid_clause = f"AND pid IN ({', '.join(str(pid) for pid in self.query.pids)})"
-
-        ctes = "WITH " + ", ".join(self.get_ctes(pid_clause))
+        ctes = "WITH " + ", ".join(self.get_ctes())
 
         sql, params = super().as_sql(*args, **kwargs)
         return ctes + sql, params
@@ -89,11 +110,13 @@ class PGTableQuerySet(models.QuerySet):
     def pid(self, *pids):
         """Set the PIDs to filter against"""
         qs = self._clone()
-        qs.query.pids = pids
+        qs.query.pids = [int(pid) for pid in pids]
         return qs
 
 
 class PGActivityQuerySet(PGTableQuerySet):
+    """The Queryset for the `PGActivity` model."""
+
     def cancel(self):
         """Cancel filtered activity."""
         pids = list(self.values_list("id", flat=True))
@@ -109,6 +132,13 @@ class PGActivityQuerySet(PGTableQuerySet):
         Use a config name from ``settings.PGACTIVITY_CONFIGS``
         to apply filters. Config overrides can be provided
         in the keyword arguments.
+
+        Args:
+            name (str): Name of the config. Must be a key from ``settings.PGACTIVITY_CONFIGS``.
+            **overrides: Any overrides to apply to the final config dictionary.
+
+        Returns:
+            dict: The configuration
         """
         qset = self
 
@@ -120,9 +150,6 @@ class PGActivityQuerySet(PGTableQuerySet):
         for f in cfg.get("filters", []) or []:
             key, val = f.split("=", 1)
             qset = qset.filter(**{key: val})
-
-        if not cfg.get("pids") and cfg.get("limit"):  # pragma: no branch
-            qset = qset[: cfg["limit"]]
 
         return qset
 
@@ -146,14 +173,55 @@ class PGTable(models.Model):
 
 class PGActivity(PGTable):
     """
-    A proxy model that wraps the ``pg_stat_activity`` table.
-    """
+    Wraps Postgres's ``pg_stat_activity`` view.
+
+    Attributes:
+        start (models.DateTimeField): The start of the query.
+        duration (models.DurationField): The duration of the query.
+        query (models.TextField): The SQL.
+        context (models.JSONField): Context tracked by ``pgactivity.context``.
+        state (models.CharField): The state of the query. One of
+            ACTIVE, IDLE, IDLE_IN_TRANSACTION, IDLE_IN_TRANSACTION_(ABORTED)
+            FASTPATH_FUNCTION_CALL, or DISABLED.
+        xact_start (models.DateTimeField): Time when the current
+            transaction was started, or null if no transaction is active.
+        backend_start (models.DateTimeField): Time when this process was started.
+        state_change (models.DateTimeField): Time when the state was last changed.
+        wait_event_type (models.CharField): Type of event for which backend is waiting or null.
+            `See values here <https://www.postgresql.org/docs/current/monitoring-stats.html#WAIT-EVENT-TABLE>`__.
+            Note that values are snake case.
+        wait_event (models.CharField): Wait event name if backend is currently waiting.
+            `See values here <https://www.postgresql.org/docs/current/monitoring-stats.html#WAIT-EVENT-ACTIVITY-TABLE>`__.
+            Note that values are in snake case.
+        backend_xid (models.CharField): Top-level transaction identifier of this backend, if any.
+        backend_xmin (models.CharField): The current backend's xmin horizon, if any.
+        backend_type (models.CharField): One of LAUNCHER, AUTOVACUUM_WORKER,
+            LOGICAL_REPLICATION_LAUNCHER, LOGICAL_REPLICATION_WORKER, PARALLEL_WORKER,
+            BACKGROUND_WRITER, CLIENT_BACKEND, CHECKPOINTER, ARCHIVER, STARTUP, WALRECEIVER,
+            WALSENDER, or WALWRITER.
+        client_addr (models.CharField): IP address of the client connected to this backend, if any.
+        client_hostname (models.CharField): Host name of the connected client, as reported by a
+            reverse DNS lookup of client_addr.
+        client_port (models.IntegerField): TCP port number that the client is using for
+            communication with this backend, or -1 if a Unix socket is used.
+    """  # noqa
 
     start = models.DateTimeField()
     duration = models.DurationField()
     query = models.TextField()
     context = JSONField(null=True)
     state = models.CharField(max_length=64)
+    xact_start = models.DateTimeField()
+    backend_start = models.DateTimeField()
+    state_change = models.DateTimeField()
+    wait_event_type = models.CharField(max_length=32, null=True)
+    wait_event = models.CharField(max_length=64, null=True)
+    backend_xid = models.CharField(max_length=256, null=True)
+    backend_xmin = models.CharField(max_length=256, null=True)
+    backend_type = models.CharField(max_length=64)
+    client_addr = models.CharField(max_length=256, null=True)
+    client_hostname = models.CharField(max_length=256, null=True)
+    client_port = models.IntegerField()
 
     objects = PGActivityQuerySet.as_manager()
 

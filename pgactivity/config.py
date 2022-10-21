@@ -3,6 +3,20 @@ from django.conf import settings
 from django.utils.module_loading import import_string
 
 
+def attributes():
+    return getattr(
+        settings,
+        "PGACTIVITY_ATTRIBUTES",
+        [
+            "id",
+            "duration",
+            "state",
+            "context",
+            "query",
+        ],
+    )
+
+
 def configs():
     """Return pre-configured LS arguments"""
     return getattr(settings, "PGACTIVITY_CONFIGS", {})
@@ -24,6 +38,9 @@ def get(name, **overrides):
 
     if "limit" not in cfg:
         cfg["limit"] = limit()
+
+    if "attributes" not in cfg:
+        cfg["attributes"] = attributes()
 
     # Note: We might allow overriding with "None" or empty values later, but currently no
     # settings allow this. This code filters overrides so that management commands can
