@@ -15,31 +15,34 @@ def test_middleware(client, capsys, reraise):
     user = ddf.G("auth.User")
     client.force_login(user)
 
-    barrier = threading.Barrier(3)
+    barrier3 = threading.Barrier(3)
+    barrier2 = threading.Barrier(2)
 
     @reraise.wrap
     def lock_user_table():
         """Lock the user table so the admin will stall"""
         with pytest.raises(OperationalError, match="statement timeout"):
-            barrier.wait()
-            with pgactivity.timeout(pgactivity.timedelta(seconds=2)):
+            with pgactivity.timeout(pgactivity.timedelta(seconds=1)):
                 with connection.cursor() as cursor, transaction.atomic():
+                    barrier3.wait(timeout=5)
                     cursor.execute("LOCK auth_user IN ACCESS EXCLUSIVE MODE")
 
     @reraise.wrap
     def load_admin():
         """The admin will stall since the user table is locked"""
-        barrier.wait()
+        barrier3.wait(timeout=5)
         time.sleep(0.25)
         client.get("/admin/")
+        barrier2.wait(timeout=5)
 
     @reraise.wrap
     def check_middleware():
-        barrier.wait()
+        barrier3.wait(timeout=5)
         time.sleep(0.5)
-        call_command("pgactivity", "ls", "-f", "context__url=/admin/")
+        call_command("pgactivity", "-f", "context__url=/admin/")
         captured = capsys.readouterr()
         assert "'url': '/admin/'" in captured.out
+        barrier2.wait(timeout=5)
 
     lock_user_table_thread = threading.Thread(target=lock_user_table)
     load_admin_thread = threading.Thread(target=load_admin)

@@ -1,54 +1,82 @@
 import contextlib
 import datetime as dt
 import threading
-import warnings
 
 from django.db import connections, DEFAULT_DB_ALIAS
+import psycopg2.extensions
 
 
 _timeout = threading.local()
 
 
 @contextlib.contextmanager
-def timeout(interval, using=DEFAULT_DB_ALIAS):
-    """Set the statement timeout.
+def timeout(interval=None, *, using=DEFAULT_DB_ALIAS, **timedelta_kwargs):
+    """Set the statement timeout as a decorator or context manager.
 
-    Cannot be nested. If in a transaction and the transaction is in an
-    errored state, the variable will not be flushed
-    and will exist until the transaction is finished.
+    A value of 0 means there is no statement timeout.
+
+    Nested invocations will successfully apply and rollback the timeout to
+    the previous value.
 
     Args:
-        interval (`datetime.timedelta`): The timeout interval.
-            Use `pgactivity.timedelta` as a shortcut to avoid
-            importing the datetime module.
-        using (str, default="default"): The database.
+        timeout (Union[datetime.timedelta, int, float], default=None): The number
+            of seconds as an integer or float. Use a timedelta object to
+            precisely specify the timeout interval.
+        using (str, default="default"): The database to use.
+        **timedelta_kwargs: Keyword arguments to directly supply to
+            datetime.timedelta to create an interval. E.g.
+            ``pgactivity.timeout(seconds=1, milliseconds=100)``
+            will create a timeout of 1100 milliseconds.
+
+    Raises:
+        django.db.utils.OperationalError: When a timeout occurs
     """
-    assert isinstance(interval, dt.timedelta)
+    if interval is None:
+        interval = dt.timedelta(**timedelta_kwargs)
+    elif isinstance(interval, (float, int)):
+        interval = dt.timedelta(seconds=interval)
+
+    if not isinstance(interval, dt.timedelta):
+        raise TypeError("Must provide a timedelta, int, or float as the interval")
 
     if not hasattr(_timeout, "value"):
         _timeout.value = None
 
-    if _timeout.value is not None:
-        raise RuntimeError("Calls to pgactivity.timeout cannot be nested")
-
+    old_timeout = _timeout.value
     _timeout.value = int(interval.total_seconds() * 1000)
-    local = connections[using].in_atomic_block
 
     try:
         with connections[using].cursor() as cursor:
-            cursor.execute(f"SET {'LOCAL' if local else ''} statement_timeout={_timeout.value}")
+            cursor.execute(f"SET statement_timeout={_timeout.value}")
             yield
     finally:
-        _timeout.value = None
+        _timeout.value = old_timeout
 
-        if local and connections[using].errors_occurred:
-            warnings.warn(
-                "pgactivity.timeout() cannot flush variable because the transaction is errored."
-                " It will leak until the transaction is rolled back."
+        with connections[using].cursor() as cursor:
+            if (
+                not cursor.connection.get_transaction_status()
+                == psycopg2.extensions.TRANSACTION_STATUS_INERROR
+            ):
+                if _timeout.value is None:
+                    cursor.execute("RESET statement_timeout")
+                else:
+                    cursor.execute(f"SET statement_timeout={_timeout.value}")
+
+
+def _pg_backend_method(method, pids, using):
+    assert method in ("cancel", "terminate")
+
+    if pids:
+        with connections[using].cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT pg_{method}_backend(pid)
+                FROM pg_stat_activity
+                WHERE pid IN ({', '.join(str(pid) for pid in pids)})
+            """
             )
-        else:
-            with connections[using].cursor() as cursor:
-                cursor.execute("RESET statement_timeout")
+
+    return pids
 
 
 def cancel(*pids, using=DEFAULT_DB_ALIAS):
@@ -57,18 +85,11 @@ def cancel(*pids, using=DEFAULT_DB_ALIAS):
     Args:
         *pids (int): The process ID(s) to cancel.
         using (str, default="default"): The database to use.
-    """
-    if pids:
-        with connections[using].cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT pg_cancel_backend(pid)
-                FROM pg_stat_activity
-                WHERE pid IN ({', '.join(str(pid) for pid in pids)})
-            """
-            )
 
-    return pids
+    Returns:
+        List[int]: Canceled process IDs
+    """
+    return _pg_backend_method("cancel", pids, using)
 
 
 def terminate(*pids, using=DEFAULT_DB_ALIAS):
@@ -77,18 +98,11 @@ def terminate(*pids, using=DEFAULT_DB_ALIAS):
     Args:
         *pids (int): The process ID(s) to terminate.
         using (str, default="default"): The database to use.
-    """
-    if pids:
-        with connections[using].cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT pg_terminate_backend(pid)
-                FROM pg_stat_activity
-                WHERE pid IN ({', '.join(str(pid) for pid in pids)})
-            """
-            )
 
-    return pids
+    Returns:
+        List[int]: Terminated process IDs
+    """
+    return _pg_backend_method("terminate", pids, using)
 
 
 def pid(using=DEFAULT_DB_ALIAS):
@@ -96,6 +110,9 @@ def pid(using=DEFAULT_DB_ALIAS):
 
     Args:
         using (str, default="default"): The database to use.
+
+    Returns:
+        int: The current backend process ID
     """
     with connections[using].cursor() as cursor:
         cursor.execute("SELECT pg_backend_pid()")
