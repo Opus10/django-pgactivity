@@ -1,4 +1,13 @@
 # Changelog
+## 1.1.0 (2022-10-24)
+### Feature
+  - Simplify management command and nest ``pgactivity.timeout``. [Wesley Kendall, b7d359d]
+
+    The ``pgactivity`` command has been turned into a single management command that can list and kill
+    queries rather than having mulitple subcommands.
+
+    The ``pgactivity.timeout`` context manager can now be nested too.
+
 ## 1.0.0 (2022-10-18)
 ### Api-Break
   - Initial release of ``django-pgactivity`` [Wesley Kendall, 593bda7]
