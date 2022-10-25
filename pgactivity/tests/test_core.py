@@ -42,6 +42,9 @@ def test_timeout():
 
                         assert get_timeout() == "4s"
 
+                    with pgactivity.timeout(None):
+                        assert get_timeout() == "0"
+
                     with pgactivity.timeout(seconds=6):
                         User.objects.create(username="hello")
             except IntegrityError:
@@ -53,8 +56,20 @@ def test_timeout():
 
 
 def test_timeout_args():
-    with pytest.raises(TypeError, match="provide a"):
+    with pytest.raises(ValueError, match="Must supply a value"):
+        with pgactivity.timeout():
+            pass
+
+    with pytest.raises(TypeError, match="Must supply int"):
         with pgactivity.timeout("1"):
+            pass
+
+    with pytest.raises(ValueError, match="Must supply value greater"):
+        with pgactivity.timeout(0):
+            pass
+
+    with pytest.raises(ValueError, match="Must supply value greater"):
+        with pgactivity.timeout(microseconds=1):
             pass
 
 
