@@ -1,4 +1,8 @@
 # Changelog
+## 1.1.1 (2022-10-24)
+### Trivial
+  - Use ``None`` to reset ``pgactivity.timeout``. [Wesley Kendall, fcabcb7]
+
 ## 1.1.0 (2022-10-24)
 ### Feature
   - Simplify management command and nest ``pgactivity.timeout``. [Wesley Kendall, b7d359d]
