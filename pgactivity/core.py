@@ -7,21 +7,37 @@ import psycopg2.extensions
 
 
 _timeout = threading.local()
+_unset = object()
+
+
+def _cast_timeout(timeout):
+    if isinstance(timeout, (int, float)):
+        timeout = dt.timedelta(seconds=timeout)
+
+    if not isinstance(timeout, dt.timedelta):
+        raise TypeError("Must supply int, float, or timedelta to pgactivity.timeout")
+
+    if timeout < dt.timedelta(milliseconds=1):
+        timeout = dt.timedelta()
+
+    return timeout
 
 
 @contextlib.contextmanager
-def timeout(interval=None, *, using=DEFAULT_DB_ALIAS, **timedelta_kwargs):
+def timeout(timeout=_unset, *, using=DEFAULT_DB_ALIAS, **timedelta_kwargs):
     """Set the statement timeout as a decorator or context manager.
 
-    A value of 0 means there is no statement timeout.
+    A value of ``None`` will set an infinite statement timeout.
+    A value of less than a millisecond is not permitted.
 
     Nested invocations will successfully apply and rollback the timeout to
     the previous value.
 
     Args:
-        timeout (Union[datetime.timedelta, int, float], default=None): The number
+        timeout (Union[datetime.timedelta, int, float, None]): The number
             of seconds as an integer or float. Use a timedelta object to
-            precisely specify the timeout interval.
+            precisely specify the timeout interval. Use ``None`` for
+            an infinite timeout.
         using (str, default="default"): The database to use.
         **timedelta_kwargs: Keyword arguments to directly supply to
             datetime.timedelta to create an interval. E.g.
@@ -30,20 +46,29 @@ def timeout(interval=None, *, using=DEFAULT_DB_ALIAS, **timedelta_kwargs):
 
     Raises:
         django.db.utils.OperationalError: When a timeout occurs
+        TypeError: When the timeout interval is an incorrect type
     """
-    if interval is None:
-        interval = dt.timedelta(**timedelta_kwargs)
-    elif isinstance(interval, (float, int)):
-        interval = dt.timedelta(seconds=interval)
+    if timedelta_kwargs:
+        timeout = dt.timedelta(**timedelta_kwargs)
+    elif timeout is _unset:
+        raise ValueError("Must supply a value to pgactivity.timeout")
 
-    if not isinstance(interval, dt.timedelta):
-        raise TypeError("Must provide a timedelta, int, or float as the interval")
+    if timeout is not None:
+        timeout = _cast_timeout(timeout)
+
+        if not timeout:
+            raise ValueError(
+                "Must supply value greater than a millisecond to pgactivity.timeout"
+                " or use ``None`` to reset the timeout."
+            )
+    else:
+        timeout = dt.timedelta()
 
     if not hasattr(_timeout, "value"):
         _timeout.value = None
 
     old_timeout = _timeout.value
-    _timeout.value = int(interval.total_seconds() * 1000)
+    _timeout.value = int(timeout.total_seconds() * 1000)
 
     try:
         with connections[using].cursor() as cursor:
