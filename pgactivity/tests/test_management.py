@@ -105,7 +105,7 @@ def test_terminate(capsys, reraise, mocker):
 
     @reraise.wrap
     def query_to_be_killed():
-        with pytest.raises(OperationalError, match="terminating"):
+        with pytest.raises(OperationalError, match="terminat"):
             with pgactivity.context(key=rand_val):
                 with connection.cursor() as cursor:
                     barrier.wait(timeout=5)

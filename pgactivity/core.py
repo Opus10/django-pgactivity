@@ -3,7 +3,15 @@ import datetime as dt
 import threading
 
 from django.db import connections, DEFAULT_DB_ALIAS
-import psycopg2.extensions
+
+from pgactivity import utils
+
+if utils.psycopg_maj_version == 2:
+    import psycopg2.extensions
+elif utils.psycopg_maj_version == 3:
+    import psycopg.pq
+else:
+    raise AssertionError
 
 
 _timeout = threading.local()
@@ -21,6 +29,21 @@ def _cast_timeout(timeout):
         timeout = dt.timedelta()
 
     return timeout
+
+
+def _is_transaction_errored(cursor):
+    """
+    True if the current transaction is in an errored state
+    """
+    if utils.psycopg_maj_version == 2:
+        return (
+            cursor.connection.get_transaction_status()
+            == psycopg2.extensions.TRANSACTION_STATUS_INERROR
+        )
+    elif utils.psycopg_maj_version == 3:
+        return cursor.connection.info.transaction_status == psycopg.pq.TransactionStatus.INERROR
+    else:
+        raise AssertionError
 
 
 @contextlib.contextmanager
@@ -72,20 +95,19 @@ def timeout(timeout=_unset, *, using=DEFAULT_DB_ALIAS, **timedelta_kwargs):
 
     try:
         with connections[using].cursor() as cursor:
-            cursor.execute(f"SET statement_timeout={_timeout.value}")
+            cursor.execute(f"SELECT set_config('statement_timeout', '{_timeout.value}', false)")
             yield
     finally:
         _timeout.value = old_timeout
 
         with connections[using].cursor() as cursor:
-            if (
-                not cursor.connection.get_transaction_status()
-                == psycopg2.extensions.TRANSACTION_STATUS_INERROR
-            ):
+            if not _is_transaction_errored(cursor):
                 if _timeout.value is None:
-                    cursor.execute("RESET statement_timeout")
+                    cursor.execute("SELECT set_config('statement_timeout', NULL, false)")
                 else:
-                    cursor.execute(f"SET statement_timeout={_timeout.value}")
+                    cursor.execute(
+                        f"SELECT set_config('statement_timeout', '{_timeout.value}', false)"
+                    )
 
 
 def _pg_backend_method(method, pids, using):
