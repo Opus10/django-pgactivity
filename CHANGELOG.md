@@ -1,5 +1,11 @@
 # Changelog
-## 1.1.1 (2022-10-24)
+## 1.2.0 (2023-06-08)
+### Feature
+  - Added Python 3.11, Django 4.2, and Psycopg 3 support [Wesley Kendall, 72af215]
+
+    Adds Python 3.11, Django 4.2, and Psycopg 3 support along with tests for multiple Postgres versions. Drops support for Django 2.2.
+
+## 1.1.1 (2022-10-25)
 ### Trivial
   - Use ``None`` to reset ``pgactivity.timeout``. [Wesley Kendall, fcabcb7]
 
