@@ -3,10 +3,10 @@ import random
 import threading
 import time
 
+import pytest
 from django.core.management import call_command
 from django.db import connection
 from django.db.utils import OperationalError
-import pytest
 
 import pgactivity
 from pgactivity.management.commands import pgactivity as pgactivity_command

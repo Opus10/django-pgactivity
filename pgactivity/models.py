@@ -1,3 +1,5 @@
+from typing import Any, List
+
 from django.conf import settings
 from django.db import DEFAULT_DB_ALIAS, models
 from django.db.models.sql import Query
@@ -117,24 +119,24 @@ class PGTableQuerySet(models.QuerySet):
 class PGActivityQuerySet(PGTableQuerySet):
     """The Queryset for the `PGActivity` model."""
 
-    def cancel(self):
+    def cancel(self) -> List[int]:
         """Cancel filtered activity."""
         pids = list(self.values_list("id", flat=True))
         return core.cancel(*pids, using=self.db)
 
-    def terminate(self):
+    def terminate(self) -> List[int]:
         """Terminate filtered activity."""
         pids = list(self.values_list("id", flat=True))
         return core.terminate(*pids, using=self.db)
 
-    def config(self, name, **overrides):
+    def config(self, name: str, **overrides: Any) -> models.QuerySet:
         """
         Use a config name from ``settings.PGACTIVITY_CONFIGS``
         to apply filters. Config overrides can be provided
         in the keyword arguments.
 
         Args:
-            name (str): Name of the config. Must be a key from ``settings.PGACTIVITY_CONFIGS``.
+            name: Name of the config. Must be a key from ``settings.PGACTIVITY_CONFIGS``.
             **overrides: Any overrides to apply to the final config dictionary.
 
         Returns:

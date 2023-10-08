@@ -1,8 +1,8 @@
 import ddf
+import pytest
 from django.contrib.auth.models import User
 from django.db import connection, transaction
 from django.db.utils import IntegrityError
-import pytest
 
 import pgactivity
 

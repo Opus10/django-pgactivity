@@ -2,10 +2,10 @@ import threading
 import time
 
 import ddf
+import pytest
 from django.core.management import call_command
 from django.db import connection, transaction
 from django.db.utils import OperationalError
-import pytest
 
 import pgactivity
 

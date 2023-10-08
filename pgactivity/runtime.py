@@ -6,7 +6,6 @@ from django.db import connection
 
 from pgactivity import config
 
-
 _context = threading.local()
 
 
