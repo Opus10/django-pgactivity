@@ -1,8 +1,9 @@
 import contextlib
 import datetime as dt
 import threading
+from typing import List, Union
 
-from django.db import connections, DEFAULT_DB_ALIAS
+from django.db import DEFAULT_DB_ALIAS, connections
 
 from pgactivity import utils
 
@@ -47,7 +48,12 @@ def _is_transaction_errored(cursor):
 
 
 @contextlib.contextmanager
-def timeout(timeout=_unset, *, using=DEFAULT_DB_ALIAS, **timedelta_kwargs):
+def timeout(
+    timeout: Union[dt.timedelta, int, float, None] = _unset,
+    *,
+    using: str = DEFAULT_DB_ALIAS,
+    **timedelta_kwargs: int,
+):
     """Set the statement timeout as a decorator or context manager.
 
     A value of ``None`` will set an infinite statement timeout.
@@ -57,14 +63,13 @@ def timeout(timeout=_unset, *, using=DEFAULT_DB_ALIAS, **timedelta_kwargs):
     the previous value.
 
     Args:
-        timeout (Union[datetime.timedelta, int, float, None]): The number
-            of seconds as an integer or float. Use a timedelta object to
-            precisely specify the timeout interval. Use ``None`` for
+        timeout: The number of seconds as an integer or float. Use a timedelta
+            object to precisely specify the timeout interval. Use ``None`` for
             an infinite timeout.
-        using (str, default="default"): The database to use.
+        using: The database to use.
         **timedelta_kwargs: Keyword arguments to directly supply to
             datetime.timedelta to create an interval. E.g.
-            ``pgactivity.timeout(seconds=1, milliseconds=100)``
+            `pgactivity.timeout(seconds=1, milliseconds=100)`
             will create a timeout of 1100 milliseconds.
 
     Raises:
@@ -126,40 +131,40 @@ def _pg_backend_method(method, pids, using):
     return pids
 
 
-def cancel(*pids, using=DEFAULT_DB_ALIAS):
+def cancel(*pids: int, using: str = DEFAULT_DB_ALIAS) -> List[int]:
     """Cancel activity using the Postgres ``pg_cancel_backend`` function.
 
     Args:
-        *pids (int): The process ID(s) to cancel.
-        using (str, default="default"): The database to use.
+        *pids: The process ID(s) to cancel.
+        using: The database to use.
 
     Returns:
-        List[int]: Canceled process IDs
+        Canceled process IDs
     """
     return _pg_backend_method("cancel", pids, using)
 
 
-def terminate(*pids, using=DEFAULT_DB_ALIAS):
+def terminate(*pids: int, using: str = DEFAULT_DB_ALIAS) -> List[int]:
     """Terminate activity using the Postgres ``pg_teminate_backend`` function.
 
     Args:
-        *pids (int): The process ID(s) to terminate.
-        using (str, default="default"): The database to use.
+        *pids: The process ID(s) to terminate.
+        using: The database to use.
 
     Returns:
-        List[int]: Terminated process IDs
+        Terminated process IDs
     """
     return _pg_backend_method("terminate", pids, using)
 
 
-def pid(using=DEFAULT_DB_ALIAS):
+def pid(using: str = DEFAULT_DB_ALIAS) -> int:
     """Get the current backend process ID.
 
     Args:
-        using (str, default="default"): The database to use.
+        using: The database to use.
 
     Returns:
-        int: The current backend process ID
+        The current backend process ID
     """
     with connections[using].cursor() as cursor:
         cursor.execute("SELECT pg_backend_pid()")
