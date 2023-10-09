@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1 (2023-10-09)
+
+### Trivial
+
+  - Added Opus10 branding to docs [Wesley Kendall, 877178b]
+
 ## 1.3.0 (2023-10-08)
 
 ### Feature
