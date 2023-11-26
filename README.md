@@ -62,7 +62,7 @@ def my_operation():
 
 ## Compatibility
 
-`django-pgactivity` is compatible with Python 3.8 - 3.12, Django 3.2 - 4.2, Psycopg 2 - 3, and Postgres 12 - 16.
+`django-pgactivity` is compatible with Python 3.8 - 3.12, Django 3.2 - 5.0, Psycopg 2 - 3, and Postgres 12 - 16.
 
 ## Documentation
 
