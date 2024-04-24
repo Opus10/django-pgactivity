@@ -64,3 +64,5 @@ PGACTIVITY_CONFIGS = {
     }
 }
 PGACTIVITY_LIMIT = 25
+
+USE_TZ = False
