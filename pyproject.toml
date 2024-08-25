@@ -29,7 +29,7 @@ exclude = [
 ]
 version = "1.5.0"
 description = "Monitor, kill, and analyze Postgres queries."
-authors = ["Opus 10 Engineering"]
+authors = ["Wes Kendall"]
 classifiers = [
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
