@@ -1,14 +1,20 @@
 # Changelog
 
+## 1.5.0 (2024-08-24)
+
+#### Changes
+
+  - Django 5.1 compatibilty, and Dropped Django 3.2 / Postgres 12 support by [@wesleykendall](https://github.com/wesleykendall) in [#10](https://github.com/Opus10/django-pgactivity/pull/10).
+
 ## 1.4.1 (2024-04-06)
 
-### Trivial
+#### Trivial
 
   - Fix ReadTheDocs builds. [Wesley Kendall, 8b3c49e]
 
 ## 1.4.0 (2023-11-26)
 
-### Feature
+#### Feature
 
   - Django 5.0 compatibility [Wesley Kendall, 12efd20]
 
@@ -16,13 +22,13 @@
 
 ## 1.3.1 (2023-10-09)
 
-### Trivial
+#### Trivial
 
   - Added Opus10 branding to docs [Wesley Kendall, 877178b]
 
 ## 1.3.0 (2023-10-08)
 
-### Feature
+#### Feature
 
   - Add Python 3.12 support and use Mkdocs for documentation [Wesley Kendall, ec98a78]
 
@@ -32,7 +38,7 @@
 
 ## 1.2.0 (2023-06-08)
 
-### Feature
+#### Feature
 
   - Added Python 3.11, Django 4.2, and Psycopg 3 support [Wesley Kendall, 72af215]
 
@@ -40,13 +46,13 @@
 
 ## 1.1.1 (2022-10-25)
 
-### Trivial
+#### Trivial
 
   - Use ``None`` to reset ``pgactivity.timeout``. [Wesley Kendall, fcabcb7]
 
 ## 1.1.0 (2022-10-24)
 
-### Feature
+#### Feature
 
   - Simplify management command and nest ``pgactivity.timeout``. [Wesley Kendall, b7d359d]
 
@@ -57,7 +63,7 @@
 
 ## 1.0.0 (2022-10-18)
 
-### Api-Break
+#### Api-Break
 
   - Initial release of ``django-pgactivity`` [Wesley Kendall, 593bda7]
 
