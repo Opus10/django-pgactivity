@@ -49,6 +49,7 @@ class PGTableQueryCompiler(SQLCompiler):
                         BOTH '_' FROM UPPER(REGEXP_REPLACE(wait_event, '([A-Z])','_\1', 'g'))
                     ) AS wait_event,
                     state_change,
+                    application_name,
                     client_addr::text,
                     client_hostname,
                     client_port
@@ -201,6 +202,7 @@ class PGActivity(PGTable):
             LOGICAL_REPLICATION_LAUNCHER, LOGICAL_REPLICATION_WORKER, PARALLEL_WORKER,
             BACKGROUND_WRITER, CLIENT_BACKEND, CHECKPOINTER, ARCHIVER, STARTUP, WALRECEIVER,
             WALSENDER, or WALWRITER.
+        application_name (models.CharField): Name of the application that is connected to this backend.
         client_addr (models.CharField): IP address of the client connected to this backend, if any.
         client_hostname (models.CharField): Host name of the connected client, as reported by a
             reverse DNS lookup of client_addr.
@@ -221,6 +223,7 @@ class PGActivity(PGTable):
     backend_xid = models.CharField(max_length=256, null=True)
     backend_xmin = models.CharField(max_length=256, null=True)
     backend_type = models.CharField(max_length=64)
+    application_name = models.CharField(max_length=64, null=True)
     client_addr = models.CharField(max_length=256, null=True)
     client_hostname = models.CharField(max_length=256, null=True)
     client_port = models.IntegerField()
