@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0 (2024-10-24)
+
+#### Feature
+
+  - Added `application_name` as one of the fields returned by the primary activity proxy model by [@Pete-J-Matthews](https://github.com/Pete-J-Matthews) in [#11](https://github.com/Opus10/django-pgactivity/pull/11).
+
 ## 1.5.0 (2024-08-24)
 
 #### Changes
