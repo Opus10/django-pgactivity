@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.0 (2024-11-01)
+
+#### Changes
+
+  - Added Python 3.13 support, dropped Python 3.8. Added Postgres17 support by [@wesleykendall](https://github.com/wesleykendall) in [#13](https://github.com/Opus10/django-pgactivity/pull/13).
+
 ## 1.6.0 (2024-10-24)
 
 #### Feature
